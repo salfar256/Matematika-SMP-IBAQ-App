@@ -77,6 +77,19 @@
   .row .sc{font-size:18px;font-weight:700;font-family:var(--mono)}
   .row .bd{padding:4px 10px;border-radius:999px;color:#fff;font-size:10px;font-weight:700;white-space:nowrap}
   .missing{width:100%;text-align:left;font-size:12px;color:var(--ink2);background:#fff;border:1px dashed var(--line);border-radius:10px;padding:10px 12px;margin-bottom:18px;line-height:1.5}
+  .row.click{cursor:pointer}
+  .row.click:hover{border-color:var(--green)}
+  .prog{font-size:13px;color:var(--ink2);margin:-8px 0 18px;min-height:18px}
+  .summary{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;width:100%;margin-bottom:18px}
+  .summary>div{padding:12px 4px;border-radius:10px;background:#fff;border:1px solid var(--line2)}
+  .summary .v{font-size:20px;font-weight:700;font-family:var(--mono)}
+  .summary .l{font-size:10px;color:var(--ink2);text-transform:uppercase;letter-spacing:.04em;margin-top:2px}
+  .chart{width:100%;background:#fff;border:1px solid var(--line2);border-radius:12px;padding:10px 6px 4px;margin-bottom:18px}
+  table.att{width:100%;border-collapse:collapse;font-size:13px;margin-bottom:20px;background:#fff;border-radius:10px;overflow:hidden}
+  table.att th{font-family:var(--mono);font-size:10px;letter-spacing:.06em;text-transform:uppercase;color:var(--ink2);text-align:left;padding:8px;border-bottom:1.5px solid var(--line)}
+  table.att td{padding:9px 8px;border-bottom:1px solid var(--line2);text-align:left}
+  table.att td.num{font-family:var(--mono);font-weight:700}
+  .up{color:#15803D}.down{color:#B91C1C}.flat{color:var(--ink2)}
   .loading{font-size:14px;color:var(--ink2);margin:10px 0 20px}
 </style>
 </head>
@@ -130,6 +143,7 @@
   <div class="small-label" style="margin-top:4px">soal benar dalam 30 detik</div>
   <div class="pill" id="r-pill"></div>
   <div class="save wait" id="r-save">Menyimpan hasil…</div>
+  <div class="prog" id="r-prog"></div>
   <div class="boxes">
     <div><div class="v" id="r-jawab">0</div><div class="l">Total dijawab</div></div>
     <div><div class="v" id="r-tepat">0%</div><div class="l">Ketepatan</div></div>
@@ -139,6 +153,7 @@
   <p class="note">Skor dicatat sebagai jumlah jawaban benar dalam waktu tetap — ukuran <em>fluency</em> berhitung untuk memantau kemajuan siswa dari waktu ke waktu.</p>
   <div class="stack">
     <button class="btn primary" type="button" id="btn-retry">Coba Lagi</button>
+    <button class="btn secondary" type="button" id="btn-myprog">Lihat Perkembanganku</button>
     <button class="btn secondary" type="button" data-go="leaderboard">Papan Peringkat</button>
     <button class="btn secondary" type="button" data-go="history">Lihat Riwayat</button>
   </div>
@@ -150,18 +165,42 @@
   <h2 id="l-title"></h2>
   <div class="filter" id="l-filter"><button data-f="ALL">Semua</button><button data-f="7A">7A</button><button data-f="7B">7B</button></div>
   <div class="loading" id="l-loading">Memuat data…</div>
+  <div class="small-label" style="margin-bottom:8px">Ketuk nama untuk melihat perkembangan</div>
   <div class="list" id="l-list"></div>
   <div class="missing hidden" id="l-missing"></div>
   <div class="stack">
-    <button class="btn secondary" type="button" id="btn-csv">Unduh Rekap (CSV)</button>
+    <button class="btn secondary" type="button" id="btn-csv-prog">Unduh Perkembangan per Siswa (CSV)</button>
+    <button class="btn secondary" type="button" id="btn-csv">Unduh Semua Percobaan (CSV)</button>
     <button class="btn primary" type="button" data-go="start">Kembali</button>
+  </div>
+</section>
+
+<!-- ============ PERKEMBANGAN SISWA ============ -->
+<section id="s-siswa" class="col wide hidden">
+  <div class="eyebrow">Perkembangan Siswa</div>
+  <div class="rname" id="p-nama"></div>
+  <div class="rclass" id="p-kelas"></div>
+  <div class="loading" id="p-loading">Memuat data…</div>
+  <div id="p-body" class="hidden" style="width:100%">
+    <div class="summary">
+      <div><div class="v" id="p-n">0</div><div class="l">Percobaan</div></div>
+      <div><div class="v" id="p-first">0</div><div class="l">Pertama</div></div>
+      <div><div class="v" id="p-last">0</div><div class="l">Terakhir</div></div>
+      <div><div class="v" id="p-best">0</div><div class="l">Terbaik</div></div>
+    </div>
+    <div class="prog" id="p-trend" style="margin:0 0 14px"></div>
+    <div class="chart" id="p-chart"></div>
+    <table class="att"><thead><tr><th>Ke-</th><th>Tanggal</th><th>Skor</th><th>Tepat</th><th>Perubahan</th></tr></thead><tbody id="p-rows"></tbody></table>
+  </div>
+  <div class="stack">
+    <button class="btn primary" type="button" id="p-back">Kembali</button>
   </div>
 </section>
 
 <script type="module">
 /* ================= KONFIGURASI FIREBASE ================= */
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
-import { getFirestore, collection, addDoc, getDocs, query, orderBy, limit, serverTimestamp }
+import { getFirestore, collection, addDoc, getDocs, query, where, orderBy, limit, serverTimestamp }
   from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
 const firebaseConfig = {
@@ -287,7 +326,7 @@ function kategori(s) {
 const $ = (id) => document.getElementById(id);
 const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
 const st = { kelas: "", nama: "", soal: null, sisa: DURASI, benar: 0, jawab: 0, lewat: 0, opStat: statKosong(), timer: null };
-const LAYAR = { start: "s-start", run: "s-run", result: "s-result", list: "s-list" };
+const LAYAR = { start: "s-start", run: "s-run", result: "s-result", list: "s-list", siswa: "s-siswa" };
 function tampil(nama) { for (const k in LAYAR) $(LAYAR[k]).classList.toggle("hidden", k !== nama); window.scrollTo(0, 0); }
 
 /* ---- pilih kelas & nama ---- */
@@ -382,7 +421,8 @@ const kirim = (d) => Promise.race([
 function setSave(cls, txt) { const el = $("r-save"); el.className = "save " + cls; el.textContent = txt; }
 async function simpan(d) {
   setSave("wait", "Menyimpan hasil…");
-  try { await kirim(d); setSave("ok", "✓ Hasil tersimpan."); }
+  $("r-prog").textContent = "";
+  try { await kirim(d); setSave("ok", "✓ Hasil tersimpan."); tampilProgresHasil(d.kelas, d.nama); }
   catch (e) {
     console.error(e);
     tulisAntrean([...bacaAntrean(), d]);
@@ -398,10 +438,66 @@ async function kirimAntrean() {
 kirimAntrean(); window.addEventListener("online", kirimAntrean);
 
 $("btn-retry").addEventListener("click", () => tampil("start"));
+$("btn-myprog").addEventListener("click", () => bukaSiswa(st.kelas, st.nama, "result"));
+
+/* ================= PERKEMBANGAN PER SISWA ================= */
+// Semua percobaan satu siswa, urut dari yang paling awal → Percobaan 1, 2, 3, …
+async function ambilPercobaan(kelas, nama) {
+  const snap = await getDocs(query(collection(db, KOLEKSI), where("nama", "==", nama)));
+  return snap.docs.map((d) => { const x = d.data(); return { ...x, tgl: x.waktu?.toDate?.() || new Date(x.tanggalLokal) }; })
+    .filter((x) => x.kelas === kelas).sort((a, b) => a.tgl - b.tgl);
+}
+const selisih = (d) => d > 0 ? `<span class="up">▲ ${d}</span>` : d < 0 ? `<span class="down">▼ ${-d}</span>` : `<span class="flat">= 0</span>`;
+
+async function tampilProgresHasil(kelas, nama) {
+  try {
+    const a = await ambilPercobaan(kelas, nama); if (!a.length) return;
+    const n = a.length, now = a[n - 1];
+    let t = `Ini percobaan ke-${n}.`;
+    if (n > 1) { const d = now.skor - a[n - 2].skor; t += d > 0 ? ` Naik ${d} dari percobaan sebelumnya 👏` : d < 0 ? ` Turun ${-d} dari percobaan sebelumnya — ayo coba lagi!` : " Sama dengan percobaan sebelumnya."; }
+    $("r-prog").textContent = t;
+  } catch (e) { console.error(e); }
+}
+
+let asalSiswa = "list";
+$("p-back").addEventListener("click", () => tampil(asalSiswa));
+async function bukaSiswa(kelas, nama, asal) {
+  asalSiswa = asal;
+  $("p-nama").textContent = nama; $("p-kelas").textContent = "Kelas " + kelas;
+  $("p-body").classList.add("hidden"); $("p-loading").classList.remove("hidden"); $("p-loading").textContent = "Memuat data…";
+  tampil("siswa");
+  let a;
+  try { a = asal === "list" ? cache.filter((x) => x.kelas === kelas && x.nama === nama).sort((p, q) => p.tgl - q.tgl) : await ambilPercobaan(kelas, nama); }
+  catch (e) { console.error(e); $("p-loading").textContent = "Gagal memuat data. Periksa koneksi internet."; return; }
+  if (!a.length) { $("p-loading").textContent = "Belum ada hasil tes untuk siswa ini."; return; }
+  $("p-loading").classList.add("hidden"); $("p-body").classList.remove("hidden");
+  const sk = a.map((x) => x.skor), n = a.length;
+  $("p-n").textContent = n; $("p-first").textContent = sk[0]; $("p-last").textContent = sk[n - 1]; $("p-best").textContent = Math.max(...sk);
+  $("p-trend").innerHTML = n < 2 ? "Baru 1 percobaan — perkembangan terlihat setelah tes berikutnya."
+    : `Dari percobaan 1 ke ${n}: ${selisih(sk[n - 1] - sk[0])} soal benar`;
+  $("p-chart").innerHTML = grafik(sk);
+  $("p-rows").innerHTML = a.map((x, i) => `<tr><td class="num">${i + 1}</td><td>${fmtTgl(x.tgl)}</td><td class="num">${x.skor}</td><td>${x.ketepatan}%</td><td>${i ? selisih(x.skor - a[i - 1].skor) : "—"}</td></tr>`).reverse().join("");
+}
+
+// Grafik garis sederhana (SVG) skor per percobaan
+function grafik(sk) {
+  const W = 420, H = 170, L = 30, R = 12, T = 16, B = 28, n = sk.length;
+  const yMax = Math.ceil(Math.max(10, ...sk) / 5) * 5;
+  const x = (i) => n === 1 ? (L + W - R) / 2 : L + i * (W - L - R) / (n - 1);
+  const y = (v) => T + (1 - v / yMax) * (H - T - B);
+  let g = "";
+  for (let v = 0; v <= yMax; v += yMax / 5) g += `<line x1="${L}" x2="${W - R}" y1="${y(v)}" y2="${y(v)}" stroke="#E7E5E4"/><text x="${L - 6}" y="${y(v) + 4}" font-size="10" text-anchor="end" fill="#57534E">${v}</text>`;
+  const pts = sk.map((v, i) => `${x(i)},${y(v)}`).join(" ");
+  const step = Math.ceil(n / 12);
+  const lab = sk.map((v, i) => (i % step === 0 || i === n - 1) ? `<text x="${x(i)}" y="${H - 12}" font-size="10" text-anchor="middle" fill="#57534E">${i + 1}</text>` : "").join("");
+  const dots = sk.map((v, i) => `<circle cx="${x(i)}" cy="${y(v)}" r="4" fill="#14532D"/>` + (n <= 15 ? `<text x="${x(i)}" y="${y(v) - 8}" font-size="10" font-weight="700" text-anchor="middle" fill="#1C1917">${v}</text>` : "")).join("");
+  return `<svg viewBox="0 0 ${W} ${H}" width="100%" style="font-family:'Courier New',monospace">${g}<polyline points="${pts}" fill="none" stroke="#14532D" stroke-width="2.5" stroke-linejoin="round"/>${dots}${lab}<text x="${(L + W - R) / 2}" y="${H - 1}" font-size="9" text-anchor="middle" fill="#A8A29E">percobaan ke-</text></svg>`;
+}
 
 /* ================= PAPAN PERINGKAT & RIWAYAT ================= */
 let mode = "leaderboard", filter = "ALL", cache = [];
 document.addEventListener("click", (e) => { const g = e.target.dataset?.go; if (!g) return; if (g === "start") tampil("start"); else bukaDaftar(g); });
+$("l-list").addEventListener("click", (e) => { const r = e.target.closest(".row.click"); if (r) bukaSiswa(r.dataset.kelas, r.dataset.nama, "list"); });
 $("l-filter").addEventListener("click", (e) => { if (e.target.dataset.f) { filter = e.target.dataset.f; renderDaftar(); } });
 
 async function bukaDaftar(m) {
@@ -413,9 +509,15 @@ async function bukaDaftar(m) {
   try {
     const snap = await getDocs(query(collection(db, KOLEKSI), orderBy("waktu", "desc"), limit(2000)));
     cache = snap.docs.map((d) => { const x = d.data(); return { id: d.id, ...x, tgl: x.waktu?.toDate?.() || new Date(x.tanggalLokal) }; });
+    nomoriPercobaan(cache);
     $("l-loading").classList.add("hidden");
   } catch (e) { console.error(e); $("l-loading").textContent = "Gagal memuat data. Periksa koneksi internet."; cache = []; }
   renderDaftar();
+}
+// beri nomor "percobaan ke-" per siswa, urut waktu
+function nomoriPercobaan(arr) {
+  const hit = new Map();
+  for (const x of [...arr].sort((a, b) => a.tgl - b.tgl)) { const k = x.kelas + "|" + x.nama; hit.set(k, (hit.get(k) || 0) + 1); x.ke = hit.get(k); }
 }
 const fmtTgl = (d) => d.toLocaleString("id-ID", { day: "2-digit", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" });
 function urut(a, b) { return b.skor - a.skor || b.ketepatan - a.ketepatan || b.tgl - a.tgl; }
@@ -432,8 +534,8 @@ function renderDaftar() {
   $("l-list").innerHTML = !data.length && $("l-loading").classList.contains("hidden") ? '<p class="sub">Belum ada hasil tersimpan.</p>' :
     data.map((x, i) => {
       const k = kategori(x.skor), top = mode === "leaderboard" && i < 3;
-      const info = mode === "leaderboard" ? `${x.kelas} · ${x.ketepatan}% tepat · ${x.kali}× tes` : `${x.kelas} · ${fmtTgl(x.tgl)} · ${x.ketepatan}% tepat`;
-      return `<div class="row" style="${top ? "border-color:" + medal[i] : ""}">
+      const info = mode === "leaderboard" ? `${x.kelas} · ${x.ketepatan}% tepat · ${x.kali}× tes` : `${x.kelas} · Percobaan ke-${x.ke} · ${fmtTgl(x.tgl)}`;
+      return `<div class="row click" data-kelas="${x.kelas}" data-nama="${esc(x.nama)}" style="${top ? "border-color:" + medal[i] : ""}">
         ${mode === "leaderboard" ? `<div class="rank" style="${top ? "color:" + medal[i] : ""}">${i + 1}</div>` : ""}
         <div class="left"><div class="nm">${esc(x.nama)}</div><div class="dt">${esc(info)}</div></div>
         <div class="right"><div class="sc">${x.skor}</div><div class="bd" style="background:${k.color}">${k.label}</div></div></div>`;
@@ -451,13 +553,32 @@ function renderDaftar() {
 /* ---- unduh rekap CSV (semua percobaan, sesuai filter kelas) ---- */
 $("btn-csv").addEventListener("click", () => {
   const rows = cache.filter((x) => filter === "ALL" || x.kelas === filter).sort((a, b) => a.kelas.localeCompare(b.kelas) || a.noAbsen - b.noAbsen || a.tgl - b.tgl);
-  const head = ["Waktu", "Kelas", "No", "Nama", "Skor", "Dijawab", "Dilewati", "Ketepatan (%)", "Kategori", "Tambah benar", "Kurang benar", "Kali benar", "Bagi benar"];
+  const head = ["Waktu", "Kelas", "No", "Nama", "Percobaan ke", "Skor", "Dijawab", "Dilewati", "Ketepatan (%)", "Kategori", "Tambah benar", "Kurang benar", "Kali benar", "Bagi benar"];
   const q = (v) => `"${String(v ?? "").replace(/"/g, '""')}"`;
-  const lines = [head, ...rows.map((x) => [fmtTgl(x.tgl), x.kelas, x.noAbsen, x.nama, x.skor, x.dijawab, x.dilewati, x.ketepatan, x.kategori,
+  const lines = [head, ...rows.map((x) => [fmtTgl(x.tgl), x.kelas, x.noAbsen, x.nama, x.ke, x.skor, x.dijawab, x.dilewati, x.ketepatan, x.kategori,
     x.rincian?.tambah?.benar, x.rincian?.kurang?.benar, x.rincian?.kali?.benar, x.rincian?.bagi?.benar])].map((r) => r.map(q).join(";"));
-  const url = URL.createObjectURL(new Blob(["﻿" + lines.join("\r\n")], { type: "text/csv;charset=utf-8" }));
-  const a = Object.assign(document.createElement("a"), { href: url, download: `rekap_berhitung_${filter}_${new Date().toISOString().slice(0, 10)}.csv` });
+  unduhCSV(lines, `semua_percobaan_${filter}`);
+});
+function unduhCSV(lines, nama) {
+  const url = URL.createObjectURL(new Blob(["\ufeff" + lines.join("\r\n")], { type: "text/csv;charset=utf-8" }));
+  const a = Object.assign(document.createElement("a"), { href: url, download: `${nama}_${new Date().toISOString().slice(0, 10)}.csv` });
   a.click(); URL.revokeObjectURL(url);
+}
+
+/* ---- unduh perkembangan: satu baris per siswa, kolom P1, P2, P3, … ---- */
+$("btn-csv-prog").addEventListener("click", () => {
+  const q = (v) => `"${String(v ?? "").replace(/"/g, '""')}"`;
+  const kelasList = filter === "ALL" ? ["7A", "7B"] : [filter];
+  const baris = [];
+  for (const k of kelasList) SISWA[k].forEach((nama, i) => {
+    const sk = cache.filter((x) => x.kelas === k && x.nama === nama).sort((a, b) => a.tgl - b.tgl).map((x) => x.skor);
+    baris.push({ k, no: i + 1, nama, sk });
+  });
+  const maxN = Math.max(1, ...baris.map((b) => b.sk.length));
+  const head = ["Kelas", "No", "Nama", "Jumlah Percobaan", ...Array.from({ length: maxN }, (_, i) => "P" + (i + 1)), "Terbaik", "Perubahan (terakhir - pertama)"];
+  const lines = [head, ...baris.map((b) => [b.k, b.no, b.nama, b.sk.length, ...Array.from({ length: maxN }, (_, i) => b.sk[i] ?? ""),
+    b.sk.length ? Math.max(...b.sk) : "", b.sk.length > 1 ? b.sk[b.sk.length - 1] - b.sk[0] : ""])].map((r) => r.map(q).join(";"));
+  unduhCSV(lines, `perkembangan_${filter}`);
 });
 </script>
 </body>
