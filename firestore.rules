@@ -1,0 +1,24 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Hasil tes berhitung cepat — tanpa login.
+    // Siapa pun boleh MEMBACA (untuk papan peringkat) dan MENAMBAH hasil baru,
+    // tapi tidak boleh mengubah atau menghapus. Hapus data lewat Firebase Console.
+    match /hasil_tes/{id} {
+      allow read: if true;
+      allow create: if
+        request.resource.data.keys().hasOnly(['nama','kelas','noAbsen','skor','dijawab','dilewati',
+          'ketepatan','kategori','rincian','durasi','tanggalLokal','waktu'])
+        && request.resource.data.kelas in ['7A', '7B']
+        && request.resource.data.nama is string && request.resource.data.nama.size() <= 80
+        && request.resource.data.skor is int && request.resource.data.skor >= 0 && request.resource.data.skor <= 150
+        && request.resource.data.dijawab is int && request.resource.data.dijawab >= request.resource.data.skor
+        && request.resource.data.durasi == 30
+        && request.resource.data.waktu == request.time;
+      allow update, delete: if false;
+    }
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}
